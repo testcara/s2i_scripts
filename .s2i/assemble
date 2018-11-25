@@ -39,5 +39,5 @@ if [ -f Gemfile ]; then
   # TODO: Perhaps we don't want this to run in every build.
   #$bundle_exec exec rake db:setup db:migrate:status db:fixtures:load
   #$bundle_exec exec rake db:setup db:migrate:status db:fixtures:load
-  $bundle_exec rake db:drop db:create db:schema:load db:fixtures:load  
+  $bundle_exec exec rake db:drop db:create db:schema:load db:fixtures:load  
 fi

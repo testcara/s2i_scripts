@@ -1,0 +1,43 @@
+#!/bin/bash
+set -x
+
+bundle_exec="/opt/rh/rh-ruby22/root/usr/bin/bundle"
+
+if [ -n "$RUBYGEM_MIRROR" ]; then
+  $bundle_exec config mirror.https://rubygems.org $RUBYGEM_MIRROR
+fi
+
+shopt -s dotglob
+echo "---> Installing application source ..."
+mv /tmp/src/* ./
+
+
+# Adding environment variables in staging part of database.yaml. 
+sed '/staging:/,/#/{//!d}' config/database.yml > out
+sed '/staging:/ r /staging.yaml' out > config/database.yml 
+
+echo "---> Building your Ruby application from source ..."
+if [ -f Gemfile ]; then
+  if [[ "$RAILS_ENV" == "development" || "$RACK_ENV" == "development" ]]; then
+    BUNDLE_WITHOUT=${BUNDLE_WITHOUT:-"test"}
+  elif [[ "$RAILS_ENV" == "test" || "$RACK_ENV" == "test" ]]; then
+    BUNDLE_WITHOUT=${BUNDLE_WITHOUT:-"development"}
+  else
+    BUNDLE_WITHOUT=${BUNDLE_WITHOUT:-"development:test"}
+  fi
+
+  if [ -n "$BUNDLE_WITHOUT" ]; then
+    ADDTL_BUNDLE_ARGS+=" --without $BUNDLE_WITHOUT"
+  fi
+  echo "---> Running 'bundle install ${ADDTL_BUNDLE_ARGS}' ..."
+  $bundle_exec install ${ADDTL_BUNDLE_ARGS}
+
+  # Create log directory
+  mkdir -p /opt/app-root/src/log
+
+  # Prepare the database.
+  # TODO: Perhaps we don't want this to run in every build.
+  #$bundle_exec exec rake db:setup db:migrate:status db:fixtures:load
+  #$bundle_exec exec rake db:setup db:migrate:status db:fixtures:load
+  $bundle_exec rake db:drop db:create db:schema:load db:fixtures:load  
+fi

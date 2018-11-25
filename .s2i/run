@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# Inspired from misc/docker/errata/startup.sh
+
+set -xeu
+bundle_exec="/opt/rh/rh-ruby22/root/usr/bin/bundle"
+
+rails_server() {
+  /opt/app-root/src/script/rails server || {
+    echo "[$$] ERROR: starting rails server, sleeping forever"
+    sleep infinity
+  }
+}
+
+run_server() {
+  echo "[$$] INFO: starting the server"
+
+  while true; do
+    rails_server &
+    local server_pid=$!
+    # show the process tree after rails is up & running
+    sleep 2s
+    pstree -p $$
+    # wait until the process finishes or gets interrupted (HUP)
+    wait $server_pid || true
+
+    echo "=========================================================="
+    # kill the process group that server belongs to
+
+    local server_pgid=$( ps -o pgid= $server_pid | grep -o '[0-9]*' )
+    echo "[$$] WARN: ... killing server pid: $server_pid pgid: $server_pgid"
+    kill -INT -- -"$server_pgid"
+  done
+}
+
+# trap HUP to restart rails server
+trap : HUP
+
+main() {
+  ${ET_NO_AUTOSTART:-false} && {
+    echo "Skipping autostart and sleeping forever"
+    echo "Use 'docker-compose exec dev bash' to login"
+    exec sleep infinity
+  }
+  # Start rails server.
+  # TODO: For kerberos authentication we need to configure and run the apache 
+  #         instead of running the pure rails server.
+  run_server
+}
+
+main "$@"
